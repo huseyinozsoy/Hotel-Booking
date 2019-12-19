@@ -56,6 +56,8 @@ class Room(db.Model):
     childbed = db.Column(db.Integer)
     adultbed = db.Column(db.Integer)
     roomtype = db.Column(db.String(255))
+    inDate = db.Column(db.DateTime)
+    outDate=db.Column(db.DateTime)
     isreserve = db.Column('is_reserve',db.Boolean)
     reservations = db.relationship('Reservation',backref='room')
 class Reservation(db.Model):
@@ -64,8 +66,7 @@ class Reservation(db.Model):
     totalamount=db.Column(db.Float)
     userid=db.Column(db.Integer,db.ForeignKey('user.id',ondelete='CASCADE'))
     roomno=db.Column(db.Integer,db.ForeignKey('room.roomno',ondelete='CASCADE'))    
-    inDate = db.Column(db.DateTime)
-    outDate=db.Column(db.DateTime)
+    
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -123,13 +124,17 @@ def index():
 @app.route('/rooms',methods=['GET','POST'])
 def rooms():
     if request.method == 'POST':
+        '''
         indate = datetime.strptime(request.form.get('indate'),'%m/%d/%Y')
         outdate = datetime.strptime(request.form.get('outdate'),'%m/%d/%Y')
         roomtype = str(request.form.get('roomtype'))
         customer = str(request.form.get('customer'))
+        '''
         #search = indate+" "+ outdate + " "+ roomtype + " " + customer
-        result = db.session.query(Room,Reservation).outerjoin(Room,Room.roomno==Reservation.roomno).filter(Reservation.inDate>=indate,Reservation.outDate<=outdate)
-        return result
+        #result = db.session.query(Room).filter(Room.inDate>=indate,Room.outDate<=outdate,Room.roomtype=='Suit',Room.isreserve==0)
+        result = db.session.query(Room).filter_by(roomno=2).all()
+        print(result)
+        return render_template('rooms.html',result=result)
     if request.method == 'GET':
         return render_template('rooms.html')
     return render_template('rooms.html')

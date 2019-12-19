@@ -13,7 +13,7 @@
       </div>
     </div>
 
-
+<!--
     <section class="ftco-section bg-light">
     	<div class="container">
     		<div class="row">
@@ -256,5 +256,39 @@
 		    </div>
     	</div>
     </section>
+-->
 
+<section class="ftco-section bg-light">
+    	<div class="container">
+    		<div class="row">
+	        <div class="col-lg-9">
+		    		<div class="row">
+		    			<div class="col-sm col-md-6 col-lg-4 ftco-animate">
+		    				<div class="room">
+		    					<a href="rooms-single.html" class="img d-flex justify-content-center align-items-center" style="background-image: url({{url_for('static',filename='images/room-1.jpg')}});">
+		    						<div class="icon d-flex justify-content-center align-items-center">
+		    							<span class="icon-search2"></span>
+		    						</div>
+		    					</a>
+		    					<div class="text p-3 text-center">
+								{% for r in result %}
+		    						<h3 class="mb-3"><a href="rooms-single.html">{{r.price}}</a></h3>
+								{% endfor %}
+		    						<p><span class="price mr-2">{{result.price}}</span> <span class="per">per night</span></p>
+		    						<ul class="list">
+		    							<li><span>Max:</span> 3 Persons</li>
+		    							<li><span>Size:</span> 45 m2</li>
+		    							<li><span>View:</span> Sea View</li>
+		    							<li><span>Bed:</span> 1</li>
+		    						</ul>
+		    						<hr>
+		    						<p class="pt-1"><a href="roomdetail" class="btn-custom">Book Now <span class="icon-long-arrow-right"></span></a></p>
+		    					</div>
+		    				</div>
+		    			</div>
+		    		</div>
+		    	</div>
+		    </div>
+    	</div>
+    </section>
 {% endblock content %}
