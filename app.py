@@ -6,15 +6,24 @@ from flask_bootstrap import Bootstrap
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash,check_password_hash
 from flask_login import LoginManager,UserMixin,login_user,login_required,logout_user,current_user
+from datetime import datetime
+from sqlalchemy import Date, cast
 
 app = Flask(__name__)
 
 #Config
 app.config['SECRET_KEY']='a random string'
 app.config['SQLALCHEMY_DATABASE_URI']='sqlite:///database.db'
+SQLALCHEMY_TRACK_MODIFICATIONS = False
 Bootstrap(app)
 db = SQLAlchemy(app)
-
+'''
+USER_APP_NAME = "Flask-User Basic App"      # Shown in and email templates and page footers
+USER_ENABLE_EMAIL = True        # Enable email authentication
+USER_ENABLE_USERNAME = False    # Disable username authentication
+USER_EMAIL_SENDER_NAME = USER_APP_NAME
+USER_EMAIL_SENDER_EMAIL = "noreply@example.com"
+'''
 #login initialize
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -24,12 +33,61 @@ login_manager.login_view = 'login'
 class User(UserMixin,db.Model):
     id = db.Column(db.Integer,primary_key=True)
     username = db.Column(db.String(),unique=True)
-    email = db.Column(db.String(),unique=True)
+    email = db.Column(db.String())
     password = db.Column(db.String())
+    reservations= db.relationship('Reservation',backref='user')
+    #roles = db.relationship('Role', secondary='user_roles')
+    '''
+class Role(db.Model):
+        __tablename__ = 'roles'
+        id = db.Column(db.Integer(), primary_key=True)
+        name = db.Column(db.String(50))
+class UserRoles(db.Model):
+        __tablename__ = 'user_roles'
+        id = db.Column(db.Integer(), primary_key=True)
+        user_id = db.Column(db.Integer(), db.ForeignKey('user.id', ondelete='CASCADE'))
+        role_id = db.Column(db.Integer(), db.ForeignKey('roles.id', ondelete='CASCADE'))
+'''
+class Room(db.Model):
+    roomno = db.Column(db.Integer, primary_key=True)
+    price = db.Column(db.Integer)
+    capacity = db.Column(db.Integer)
+    floorno = db.Column(db.Integer)
+    childbed = db.Column(db.Integer)
+    adultbed = db.Column(db.Integer)
+    roomtype = db.Column(db.String(255))
+    isreserve = db.Column('is_reserve',db.Boolean)
+    reservations = db.relationship('Reservation',backref='room')
+class Reservation(db.Model):
+    invoiceno=db.Column(db.Integer,primary_key=True)
+    time=db.Column(db.DateTime,index=True,default=datetime.now())
+    totalamount=db.Column(db.Float)
+    userid=db.Column(db.Integer,db.ForeignKey('user.id',ondelete='CASCADE'))
+    roomno=db.Column(db.Integer,db.ForeignKey('room.roomno',ondelete='CASCADE'))    
+    inDate = db.Column(db.DateTime)
+    outDate=db.Column(db.DateTime)
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+'''
+user_manager = UserManager(app,db,User)
+
+    # Create 'admin@example.com' user with 'Admin' and 'Agent' roles
+if not User.query.filter(User.email == 'admin@example.com').first():
+    user = User(username='Admin',email='admin@example.com',password=user_manager.hash_password('Password1'))
+    user.roles.append(Role(name='Admin'))
+    user.roles.append(Role(name='Agent'))
+    db.session.add(user)
+    db.session.commit()
+
+
+user = User(username='Admin',email='admin@example.com',password=generate_password_hash('123','sha256'))
+user.roles.append(Role(name='Admin'))
+#user.roles.append(Role(name='Agent'))
+db.session.add(user)
+db.session.commit()
+'''
 
 db.create_all()
 
@@ -49,16 +107,29 @@ class RegisterFrom(FlaskForm):
 #Routes
 @app.route('/')
 def index():
+    '''
+    room1 = Room(price=1500,capacity=3,floorno=2,childbed=1,adultbed=2,roomtype='Suite',isreserve = 0)
+    db.session.add(room1)
+    db.session.commit()
+    room2 = Room(price=1000,capacity=2,floorno=1,childbed=0,adultbed=2,roomtype='Family',isreserve = 1)
+    db.session.add(room2)
+    db.session.commit()
+
+    reservation = Reservation(totalamount=1000,userid=1,roomno=2,inDate=datetime.strptime('17/12/19', '%d/%m/%y'),outDate=datetime.strptime('27/12/19', '%d/%m/%y'))
+    db.session.add(reservation)
+    db.session.commit()
+    '''
     return render_template('index.html')
 @app.route('/rooms',methods=['GET','POST'])
 def rooms():
     if request.method == 'POST':
-        indate = request.form.get('indate')
-        outdate = request.form.get('outdate')
+        indate = datetime.strptime(request.form.get('indate'),'%m/%d/%Y')
+        outdate = datetime.strptime(request.form.get('outdate'),'%m/%d/%Y')
         roomtype = str(request.form.get('roomtype'))
         customer = str(request.form.get('customer'))
-        search = indate+" "+ outdate + " "+ roomtype + " " + customer
-        return search
+        #search = indate+" "+ outdate + " "+ roomtype + " " + customer
+        result = db.session.query(Room,Reservation).outerjoin(Room,Room.roomno==Reservation.roomno).filter(Reservation.inDate>=indate,Reservation.outDate<=outdate)
+        return result
     if request.method == 'GET':
         return render_template('rooms.html')
     return render_template('rooms.html')
@@ -102,6 +173,33 @@ def logout():
     logout_user()
     return redirect(url_for('index'))
 
+@login_required
+@app.route('/admin',methods=['GET','POST'])
+def admin():
+    if request.method == 'POST':
+        price = int(request.form.get('price'))
+        capacity = int(request.form.get('capacity'))
+        floorno = int(request.form.get('floorno'))
+        childbed = int(request.form.get('childbed'))
+        adultbed= int(request.form.get('adultbed'))
+        roomtype = request.form.get('roomtype')
+        isreserve = str(request.form.get('isreserve'))
+        if isreserve == 'on':
+            isreserve ='1'
+        elif isreserve == 'None':
+            isreserve = '0'
+        room = Room(price=price,capacity=capacity,floorno=floorno,childbed=childbed,adultbed=adultbed,roomtype=roomtype,isreserve=int(isreserve))
+        db.session.add(room)
+        db.session.commit()
+    '''elif request.method == 'GET':
+        if current_user:
+            return render_template('login.html')
+        elif current_user.username == 'Admin':
+            return render_template('admin.html')
+        '''
+        
+        
+    return render_template('admin.html')
 
 
 app.run(debug=True)
