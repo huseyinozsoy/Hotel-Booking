@@ -7,7 +7,7 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash,check_password_hash
 from flask_login import LoginManager,UserMixin,login_user,login_required,logout_user,current_user
 from datetime import datetime
-from sqlalchemy import Date, cast
+from sqlalchemy import Date, cast,and_
 
 app = Flask(__name__)
 
@@ -56,8 +56,8 @@ class Room(db.Model):
     childbed = db.Column(db.Integer)
     adultbed = db.Column(db.Integer)
     roomtype = db.Column(db.String(255))
-    inDate = db.Column(db.DateTime)
-    outDate=db.Column(db.DateTime)
+    inDate = db.Column(db.Date)
+    outDate=db.Column(db.Date)
     isreserve = db.Column('is_reserve',db.Boolean)
     reservations = db.relationship('Reservation',backref='room')
 class Reservation(db.Model):
@@ -124,16 +124,27 @@ def index():
 @app.route('/rooms',methods=['GET','POST'])
 def rooms():
     if request.method == 'POST':
-        '''
-        indate = datetime.strptime(request.form.get('indate'),'%m/%d/%Y')
-        outdate = datetime.strptime(request.form.get('outdate'),'%m/%d/%Y')
+        
+        indateold = str(request.form.get('indate'))
+        indatesplited = indateold.split('/')
+        month = indatesplited[0]
+        day = indatesplited[1]
+        year = indatesplited[2]
+        indate = str(year+'-'+month+'-'+day)
+        outdateold = str(request.form.get('outdate'))
+        outdatesplited = outdateold.split('/')
+        outdate= str(outdatesplited[2]+'-'+outdatesplited[0]+'-'+outdatesplited[1])
         roomtype = str(request.form.get('roomtype'))
-        customer = str(request.form.get('customer'))
-        '''
+        adultbed = int(request.form.get('customer'))
+        print(roomtype)
+        
         #search = indate+" "+ outdate + " "+ roomtype + " " + customer
         #result = db.session.query(Room).filter(Room.inDate>=indate,Room.outDate<=outdate,Room.roomtype=='Suit',Room.isreserve==0)
-        result = db.session.query(Room).filter_by(roomno=2).all()
-        print(result)
+        #result = db.session.query(Room).filter_by(roomno=2).all()
+        #result = db.session.query(Room).filter_by(and_(roomtype=='Suit',isreserve==0)   ).all() Yanlış
+        result = Room.query.filter(Room.roomtype==roomtype).filter(Room.isreserve==0).filter(Room.inDate<=indate).filter(Room.outDate>=outdate).all() #Çalışıyor!
+        #result = Room.query.filter(Room.inDate>=datetime.strptime('2019-12-19','%Y-%m-%d'),Room.outDate>=datetime.strptime('2019-12-25','%Y-%m-%d'),Room.roomtype=='Suit',Room.isreserve==0).all()
+        #print(result)
         return render_template('rooms.html',result=result)
     if request.method == 'GET':
         return render_template('rooms.html')
