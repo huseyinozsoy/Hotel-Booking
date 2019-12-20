@@ -216,6 +216,7 @@ def admin():
         
         
     return render_template('admin.html')
+@login_required
 @app.route('/basket/<roomno>',methods=['GET','POST'])
 def basket(roomno):
     room = Room.query.filter_by(roomno=roomno)
