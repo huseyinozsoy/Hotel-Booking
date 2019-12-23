@@ -2,7 +2,6 @@ from flask import Flask,render_template,flash,redirect,url_for,request
 from flask_wtf import FlaskForm
 from wtforms import StringField,PasswordField,BooleanField,SubmitField
 from wtforms.validators import InputRequired,Email,Length,EqualTo
-from flask_bootstrap import Bootstrap
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash,check_password_hash
 from flask_login import LoginManager,UserMixin,login_user,login_required,logout_user,current_user
@@ -15,7 +14,6 @@ app = Flask(__name__)
 app.config['SECRET_KEY']='a random string'
 app.config['SQLALCHEMY_DATABASE_URI']='sqlite:///database.db'
 SQLALCHEMY_TRACK_MODIFICATIONS = False
-Bootstrap(app)
 db = SQLAlchemy(app)
 '''
 USER_APP_NAME = "Flask-User Basic App"      # Shown in and email templates and page footers
@@ -65,7 +63,12 @@ class Reservation(db.Model):
     time=db.Column(db.DateTime,index=True,default=datetime.now())
     totalamount=db.Column(db.Float)
     userid=db.Column(db.Integer,db.ForeignKey('user.id',ondelete='CASCADE'))
-    roomno=db.Column(db.Integer,db.ForeignKey('room.roomno',ondelete='CASCADE'))    
+    roomno=db.Column(db.Integer,db.ForeignKey('room.roomno',ondelete='CASCADE'))  
+class Baskets(db.Model):
+    basketno=db.Column(db.Integer,primary_key=True)
+    roomno=db.Column(db.Integer,db.ForeignKey('room.roomno',ondelete='CASCADE'))
+    userid=db.Column(db.Integer,db.ForeignKey('user.id',ondelete='CASCADE'))
+    price = db.Column(db.Integer)
     
 
 @login_manager.user_loader
@@ -186,6 +189,8 @@ def register():
 @app.route('/logout')
 @login_required
 def logout():
+    Baskets.query.filter_by(userid=current_user.id).delete()
+    db.session.commit()
     logout_user()
     return redirect(url_for('index'))
 
@@ -199,12 +204,14 @@ def admin():
         childbed = int(request.form.get('childbed'))
         adultbed= int(request.form.get('adultbed'))
         roomtype = request.form.get('roomtype')
+        inDate = datetime.strptime(request.form.get('inDate'),'%Y-%m-%d')
+        outDate = datetime.strptime(request.form.get('outDate'),'%Y-%m-%d')
         isreserve = str(request.form.get('isreserve'))
         if isreserve == 'on':
             isreserve ='1'
         elif isreserve == 'None':
             isreserve = '0'
-        room = Room(price=price,capacity=capacity,floorno=floorno,childbed=childbed,adultbed=adultbed,roomtype=roomtype,isreserve=int(isreserve))
+        room = Room(price=price,capacity=capacity,floorno=floorno,childbed=childbed,adultbed=adultbed,roomtype=roomtype,inDate=inDate,outDate=outDate,isreserve=int(isreserve))
         db.session.add(room)
         db.session.commit()
     '''elif request.method == 'GET':
@@ -217,9 +224,102 @@ def admin():
         
     return render_template('admin.html')
 @login_required
-@app.route('/basket/<roomno>',methods=['GET','POST'])
-def basket(roomno):
-    room = Room.query.filter_by(roomno=roomno)
-    return render_template('basket.html',room=room)
+@app.route('/book/<roomno>/<price>',methods=['GET','POST'])
+def book(roomno,price):
+    bas=Baskets(userid=current_user.id,roomno=roomno,price=price)
+    db.session.add(bas)
+    db.session.commit()
+    return render_template('index.html')
+@login_required
+@app.route('/listbasket')
+def listbasket():
+    list=db.session.query(Baskets).filter_by(userid=current_user.id)
+    return render_template('basket.html',list=list)
 
+@login_required
+@app.route('/reservations')
+def reservations():
+    result=db.session.query(Reservation).filter(Reservation.userid==current_user.id).all()
+    return render_template('info.html',result=result)
+
+@login_required
+@app.route('/insres/<roomno>/<basketno>')#sepetten rezervasyon ekleme
+def insres(roomno,basketno):
+    room=Room.query.get(roomno)
+    res=Reservation(userid=current_user.id,roomno=room.roomno,totalamount=room.price)
+    db.session.add(res)
+    room=Room.query.get(roomno)
+    room.isreserve=True
+    Baskets.query.filter_by(basketno=basketno).delete()
+    db.session.commit()
+    return render_template('info.html')
+
+@login_required
+@app.route('/insresdirect/<roomno>')
+def insresdirect(roomno):
+    room=Room.query.get(roomno)
+    res=Reservation(userid=current_user.id,roomno=room.roomno,totalamount=room.price,roomtype=room.roomtype,capacity=room.capacity)
+    db.session.add(res)
+    room=Room.query.get(roomno)
+    room.isreserve=True
+    db.session.commit()
+    return render_template('info.html')
+    
+
+
+@login_required
+@app.route('/delres/<invoiceno>/<roomno>')
+def delres(invoiceno,roomno):
+    Reservation.query.filter_by(invoiceno=invoiceno).delete()
+    room=Room.query.get(roomno)
+    room.isreserve=False
+    db.session.commit()
+    return redirect(url_for('reservations'))
+
+@login_required
+@app.route('/delbasket/<basketno>')
+def delbasket(basketno):
+    Baskets.query.filter_by(basketno=basketno).delete()
+    db.session.commit()
+    return redirect(url_for('listbasket'))
+
+@login_required
+@app.route('/adminlist')
+def adminList():
+    rooms = Room.query.all()
+    return render_template('admin-list.html',rooms=rooms)
+
+@app.route('/deleteroom/<roomno>')
+def deleteroom(roomno):
+    Room.query.filter_by(roomno=roomno).delete()
+    db.session.commit()
+    return redirect(url_for('adminList'))
+@app.route('/getupdateroom/<roomno>',methods=['GET','POST'])
+def getupdateroom(roomno):
+    if request.method=='GET':
+        room = Room.query.filter_by(roomno=roomno).first()
+        return render_template('updateroom.html',room=room)
+@app.route('/updateroom/<roomno>',methods=['GET','POST'])
+def updateroom(roomno):
+    if request.method=='POST':
+        room = Room.query.filter_by(roomno=roomno).first()
+        room.capacity = int(request.form.get('capacity'))
+        room.price = int(request.form.get('price'))
+        room.floorno = int(request.form.get('floorno'))
+        room.childbed = int(request.form.get('childbed'))
+        room.adultbed = int(request.form.get('adultbed'))
+        room.roomtype = request.form.get('roomtype')
+        room.inDate = datetime.strptime(request.form.get('inDate'),'%Y-%m-%d')
+        room.outDate = datetime.strptime(request.form.get('outDate'),'%Y-%m-%d')
+        isreserve = str(request.form.get('isreserve'))
+        if isreserve == 'on':
+            isreserve =True
+        elif isreserve == 'None':
+            isreserve = False
+        room.isreserve = isreserve
+        db.session.commit()
+        return redirect(url_for('adminList'))
+    return redirect('admin-list.html')
+
+    
 app.run(debug=True)

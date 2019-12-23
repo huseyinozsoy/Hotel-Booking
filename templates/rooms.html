@@ -286,8 +286,9 @@
 		    							<li><span>View:</span> Sea View</li>
 		    							<li><span>Bed:</span> 1</li>
 		    						</ul>
-		    						<hr>
-		    						<p class="pt-1"><a class="btn-custom" href="{{url_for('basket',roomno=r.roomno)}}">Book Now <span class="icon-long-arrow-right"></span></a></p>
+									<hr>
+									<p class="pt-1"><a class="btn-custom" href="{{url_for('book',roomno=r.roomno,price=r.price)}}">Add Basket<span class="icon-long-arrow-right"></span></a></p>
+		    						<p class="pt-1"><a class="btn-custom" href="{{url_for('insresdirect',roomno=r.roomno)}}">Book Now <span class="icon-long-arrow-right"></span></a></p>
 		    					</div>
 								
 		    				</div>
